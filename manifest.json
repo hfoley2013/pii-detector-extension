@@ -11,7 +11,8 @@
   
   "host_permissions": [
     "https://chatgpt.com/*",
-    "https://chat.openai.com/*"
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*"
   ],
   
   "background": {
@@ -24,7 +25,8 @@
         "https://chatgpt.com/*", 
         "https://chat.openai.com/*",
         "https://chatgpt.com/g/*",
-        "https://chatgpt.com/c/*"
+        "https://chatgpt.com/c/*",
+        "https://gemini.google.com/*"
       ],
       "js": [
         "src/lib/tokenizer.js",
@@ -33,6 +35,7 @@
         "src/lib/pii-detector.js",
         "src/utils/dom-utils.js",
         "src/content/chatgpt-integration.js",
+        "src/content/gemini-integration.js",
         "src/content/content.js"
       ],
       "run_at": "document_end"

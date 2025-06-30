@@ -58,9 +58,12 @@ console.log('🚨 testExtensionLoaded function defined immediately');
 class PIIExtensionContent {
   constructor() {
     this.chatGPTIntegration = null;
+    this.geminiIntegration = null;
+    this.activeIntegration = null;
     this.isActive = true;
     this.initializationAttempts = 0;
     this.maxInitializationAttempts = 5;
+    this.platform = this.detectPlatform();
   }
 
   async initialize() {
@@ -84,8 +87,18 @@ class PIIExtensionContent {
     }
   }
 
+  detectPlatform() {
+    const hostname = window.location.hostname;
+    if (hostname.includes('chatgpt.com')) {
+      return 'chatgpt';
+    } else if (hostname.includes('gemini.google.com')) {
+      return 'gemini';
+    }
+    return null;
+  }
+
   isOnSupportedSite() {
-    return window.location.hostname.includes('chatgpt.com');
+    return this.platform !== null;
   }
 
   async waitForPageLoad() {
@@ -108,11 +121,26 @@ class PIIExtensionContent {
   }
 
   async initializeChatIntegration() {
-    this.chatGPTIntegration = new ChatGPTIntegration();
+    console.log(`🔒 Initializing integration for platform: ${this.platform}`);
     
-    const initialized = await this.chatGPTIntegration.initialize();
-    if (!initialized) {
-      throw new Error('Failed to initialize ChatGPT integration');
+    if (this.platform === 'chatgpt') {
+      this.chatGPTIntegration = new ChatGPTIntegration();
+      this.activeIntegration = this.chatGPTIntegration;
+      
+      const initialized = await this.chatGPTIntegration.initialize();
+      if (!initialized) {
+        throw new Error('Failed to initialize ChatGPT integration');
+      }
+    } else if (this.platform === 'gemini') {
+      this.geminiIntegration = new GeminiIntegration();
+      this.activeIntegration = this.geminiIntegration;
+      
+      const initialized = await this.geminiIntegration.initialize();
+      if (!initialized) {
+        throw new Error('Failed to initialize Gemini integration');
+      }
+    } else {
+      throw new Error(`Unsupported platform: ${this.platform}`);
     }
 
     // Notify background script that content script is ready
@@ -144,10 +172,10 @@ class PIIExtensionContent {
         currentUrl = window.location.href;
         console.log('Navigation detected:', oldUrl, '→', currentUrl);
         
-        // Reinitialize after navigation with longer delay for ChatGPT
+        // Reinitialize after navigation with longer delay
         setTimeout(() => {
           console.log('Reinitializing after navigation...');
-          this.chatGPTIntegration?.reinitialize();
+          this.activeIntegration?.reinitialize();
         }, 2000);
       }
     };
@@ -192,7 +220,8 @@ class PIIExtensionContent {
         case 'getStatus':
           sendResponse({
             status: 'active',
-            isInitialized: this.chatGPTIntegration?.isInitialized || false,
+            platform: this.platform,
+            isInitialized: this.activeIntegration?.isInitialized || false,
             url: window.location.href
           });
           break;
@@ -203,7 +232,7 @@ class PIIExtensionContent {
           break;
 
         case 'reinitialize':
-          this.chatGPTIntegration?.reinitialize();
+          this.activeIntegration?.reinitialize();
           sendResponse({ success: true });
           break;
 
@@ -246,6 +275,7 @@ let piiExtension;
 const initializeExtension = () => {
   if (piiExtension) {
     piiExtension.chatGPTIntegration?.destroy();
+    piiExtension.geminiIntegration?.destroy();
   }
   
   piiExtension = new PIIExtensionContent();
@@ -286,6 +316,7 @@ if (document.readyState === 'loading') {
 
 window.addEventListener('beforeunload', () => {
   piiExtension?.chatGPTIntegration?.destroy();
+  piiExtension?.geminiIntegration?.destroy();
 });
 
 // Define global functions immediately when content script loads
