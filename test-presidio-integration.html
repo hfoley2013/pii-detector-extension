@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Presidio Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔒 Presidio Integration Test</h1>
+    
+    <div class="test-section">
+        <h2>Service Status</h2>
+        <button onclick="checkServices()">Check Presidio Services</button>
+        <div id="serviceStatus"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>PII Detection Test</h2>
+        <textarea id="testText" rows="4" cols="80" placeholder="Enter text with PII to test...">My name is John Doe and my email is john.doe@example.com. Call me at 555-123-4567.</textarea><br>
+        <button onclick="testPresidio()">Test Presidio Detection</button>
+        <button onclick="testRegex()">Test Regex Detection</button>
+        <button onclick="testCombined()">Test Combined Detection</button>
+        <div id="detectionResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Performance Comparison</h2>
+        <button onclick="performanceTest()">Run Performance Test</button>
+        <div id="performanceResults"></div>
+    </div>
+
+    <!-- Load extension scripts -->
+    <script src="src/lib/pii-patterns.js"></script>
+    <script src="src/services/presidio-client.js"></script>
+    <script src="src/lib/pii-detector.js"></script>
+
+    <script>
+        async function checkServices() {
+            const statusDiv = document.getElementById('serviceStatus');
+            statusDiv.innerHTML = 'Checking services...';
+            
+            try {
+                const presidioClient = new PresidioClient();
+                const status = await presidioClient.getServiceStatus();
+                
+                statusDiv.innerHTML = `
+                    <div class="result ${status.available ? 'success' : 'error'}">
+                        <strong>Presidio Services: ${status.available ? 'Available' : 'Unavailable'}</strong>
+                        <pre>${JSON.stringify(status, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>Error checking services:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testPresidio() {
+            const text = document.getElementById('testText').value;
+            const resultsDiv = document.getElementById('detectionResults');
+            
+            try {
+                const startTime = Date.now();
+                const presidioClient = new PresidioClient();
+                const results = await presidioClient.detectPII(text);
+                const duration = Date.now() - startTime;
+                
+                resultsDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>Presidio Detection (${duration}ms):</strong>
+                        <pre>${JSON.stringify(results, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>Presidio Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testRegex() {
+            const text = document.getElementById('testText').value;
+            const resultsDiv = document.getElementById('detectionResults');
+            
+            try {
+                const startTime = Date.now();
+                const regexDetector = new PIIPatternDetector();
+                const results = await regexDetector.analyzePII(text);
+                const duration = Date.now() - startTime;
+                
+                resultsDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>Regex Detection (${duration}ms):</strong>
+                        <pre>${JSON.stringify(results, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>Regex Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testCombined() {
+            const text = document.getElementById('testText').value;
+            const resultsDiv = document.getElementById('detectionResults');
+            
+            try {
+                const startTime = Date.now();
+                const detector = new PIIDetector();
+                const results = await detector.analyzePII(text);
+                const duration = Date.now() - startTime;
+                
+                resultsDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>Combined Detection (${duration}ms):</strong>
+                        <pre>${JSON.stringify(results, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>Combined Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function performanceTest() {
+            const resultsDiv = document.getElementById('performanceResults');
+            resultsDiv.innerHTML = 'Running performance test...';
+            
+            const testTexts = [
+                "My name is John Doe and my email is john.doe@example.com",
+                "Call me at 555-123-4567 or reach out to jane.smith@company.org",
+                "SSN: 123-45-6789, Credit Card: 4532-1234-5678-9012",
+                "Address: 123 Main St, Anytown, ST 12345, Phone: (555) 987-6543"
+            ];
+            
+            const results = {
+                presidio: { times: [], success: 0, failure: 0 },
+                regex: { times: [], success: 0, failure: 0 },
+                combined: { times: [], success: 0, failure: 0 }
+            };
+            
+            // Test each method
+            for (const text of testTexts) {
+                // Test Presidio
+                try {
+                    const start = Date.now();
+                    const presidioClient = new PresidioClient();
+                    await presidioClient.detectPII(text);
+                    results.presidio.times.push(Date.now() - start);
+                    results.presidio.success++;
+                } catch (error) {
+                    results.presidio.failure++;
+                }
+                
+                // Test Regex
+                try {
+                    const start = Date.now();
+                    const regexDetector = new PIIPatternDetector();
+                    await regexDetector.analyzePII(text);
+                    results.regex.times.push(Date.now() - start);
+                    results.regex.success++;
+                } catch (error) {
+                    results.regex.failure++;
+                }
+                
+                // Test Combined
+                try {
+                    const start = Date.now();
+                    const detector = new PIIDetector();
+                    await detector.analyzePII(text);
+                    results.combined.times.push(Date.now() - start);
+                    results.combined.success++;
+                } catch (error) {
+                    results.combined.failure++;
+                }
+            }
+            
+            // Calculate averages
+            const avgPresidio = results.presidio.times.reduce((a, b) => a + b, 0) / results.presidio.times.length || 0;
+            const avgRegex = results.regex.times.reduce((a, b) => a + b, 0) / results.regex.times.length || 0;
+            const avgCombined = results.combined.times.reduce((a, b) => a + b, 0) / results.combined.times.length || 0;
+            
+            resultsDiv.innerHTML = `
+                <div class="result success">
+                    <strong>Performance Results:</strong>
+                    <pre>
+Presidio:  ${avgPresidio.toFixed(1)}ms avg (${results.presidio.success}/${results.presidio.success + results.presidio.failure} success)
+Regex:     ${avgRegex.toFixed(1)}ms avg (${results.regex.success}/${results.regex.success + results.regex.failure} success)
+Combined:  ${avgCombined.toFixed(1)}ms avg (${results.combined.success}/${results.combined.success + results.combined.failure} success)
+                    </pre>
+                </div>
+            `;
+        }
+
+        // Auto-check services on load
+        window.onload = () => {
+            checkServices();
+        };
+    </script>
+</body>
+</html>
