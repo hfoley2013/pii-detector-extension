@@ -341,8 +341,11 @@ class PIIExtensionBackground {
           return text;
         }
 
+        // Remove overlapping entities to prevent malformed tokens
+        const cleanedEntities = this.removeOverlappingEntities(piiEntities);
+        
         let tokenizedText = text;
-        const sortedEntities = piiEntities.sort((a, b) => b.start - a.start);
+        const sortedEntities = cleanedEntities.sort((a, b) => b.start - a.start);
 
         for (const entity of sortedEntities) {
           const originalValue = text.substring(entity.start, entity.end);
@@ -354,6 +357,46 @@ class PIIExtensionBackground {
         }
 
         return tokenizedText;
+      },
+
+      removeOverlappingEntities(entities) {
+        if (!entities || entities.length <= 1) {
+          return entities;
+        }
+
+        // Sort by start position
+        const sorted = entities.sort((a, b) => a.start - b.start);
+        const cleaned = [];
+
+        for (let i = 0; i < sorted.length; i++) {
+          const current = sorted[i];
+          let shouldInclude = true;
+
+          // Check if this entity overlaps with any already accepted entity
+          for (const accepted of cleaned) {
+            if (this.entitiesOverlap(current, accepted)) {
+              // Keep the entity with higher confidence/score
+              if ((current.score || 0.8) > (accepted.score || 0.8)) {
+                // Remove the lower-scored entity and add current
+                const index = cleaned.indexOf(accepted);
+                cleaned.splice(index, 1);
+              } else {
+                shouldInclude = false;
+              }
+              break;
+            }
+          }
+
+          if (shouldInclude) {
+            cleaned.push(current);
+          }
+        }
+
+        return cleaned;
+      },
+
+      entitiesOverlap(entity1, entity2) {
+        return !(entity1.end <= entity2.start || entity2.end <= entity1.start);
       },
 
       clearTokenMappings() {
@@ -571,8 +614,11 @@ class PIITokenizer {
       return text;
     }
 
+    // Remove overlapping entities to prevent malformed tokens
+    const cleanedEntities = this.removeOverlappingEntities(piiEntities);
+    
     let tokenizedText = text;
-    const sortedEntities = piiEntities.sort((a, b) => b.start - a.start);
+    const sortedEntities = cleanedEntities.sort((a, b) => b.start - a.start);
 
     for (const entity of sortedEntities) {
       const originalValue = text.substring(entity.start, entity.end);
@@ -584,6 +630,46 @@ class PIITokenizer {
     }
 
     return tokenizedText;
+  }
+
+  removeOverlappingEntities(entities) {
+    if (!entities || entities.length <= 1) {
+      return entities;
+    }
+
+    // Sort by start position
+    const sorted = entities.sort((a, b) => a.start - b.start);
+    const cleaned = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+      const current = sorted[i];
+      let shouldInclude = true;
+
+      // Check if this entity overlaps with any already accepted entity
+      for (const accepted of cleaned) {
+        if (this.entitiesOverlap(current, accepted)) {
+          // Keep the entity with higher confidence/score
+          if ((current.score || 0.8) > (accepted.score || 0.8)) {
+            // Remove the lower-scored entity and add current
+            const index = cleaned.indexOf(accepted);
+            cleaned.splice(index, 1);
+          } else {
+            shouldInclude = false;
+          }
+          break;
+        }
+      }
+
+      if (shouldInclude) {
+        cleaned.push(current);
+      }
+    }
+
+    return cleaned;
+  }
+
+  entitiesOverlap(entity1, entity2) {
+    return !(entity1.end <= entity2.start || entity2.end <= entity1.start);
   }
 
   detokenizeText(text) {
