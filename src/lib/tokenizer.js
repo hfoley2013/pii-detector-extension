@@ -31,7 +31,7 @@ class PIITokenizer {
     const hash = this.hashString(key);
     const tokenId = this.generateTokenId(hash, piiType);
     const semanticLabel = this.getSemanticLabel(piiType);
-    const token = `<${piiType}>${semanticLabel}_${tokenId}</${piiType}>`;
+    const token = `[${piiType.toUpperCase()}:${semanticLabel}_${tokenId}]`;
     
     this.tokenMappings.set(key, token);
     this.reverseTokenMappings.set(token, piiValue);
@@ -101,7 +101,7 @@ class PIITokenizer {
     if (!text) return text;
 
     let detokenizedText = text;
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date|url)>([^<]+)<\/\1>/g;
+    const tokenPattern = /\[(NAME|EMAIL|PHONE|SSN|CC|ADDRESS|DATE|URL):([^\]]+)\]/g;
     
     detokenizedText = detokenizedText.replace(tokenPattern, (match) => {
       const originalValue = this.reverseTokenMappings.get(match);
@@ -113,13 +113,13 @@ class PIITokenizer {
 
   extractTokens(text) {
     const tokens = [];
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date|url)>([^<]+)<\/\1>/g;
+    const tokenPattern = /\[(NAME|EMAIL|PHONE|SSN|CC|ADDRESS|DATE|URL):([^\]]+)\]/g;
     let match;
 
     while ((match = tokenPattern.exec(text)) !== null) {
       tokens.push({
         token: match[0],
-        type: match[1],
+        type: match[1].toLowerCase(),
         tokenId: match[2],
         start: match.index,
         end: match.index + match[0].length

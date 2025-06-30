@@ -102,9 +102,9 @@ class ChatGPTIntegration {
         const inputText = DOMUtils.getTextContent(this.inputElement);
         console.log('🔒 Intercepting submission with text:', inputText);
         
-        // Check if this is already a tokenized submission
-        if (inputText.includes('<email>') || inputText.includes('<phone>') || inputText.includes('<name>') ||
-            inputText.includes('<ssn>') || inputText.includes('<cc>') || inputText.includes('<address>') || inputText.includes('<date>')) {
+        // Check if this is already a tokenized submission (new bracket format)
+        if (inputText.includes('[EMAIL:') || inputText.includes('[PHONE:') || inputText.includes('[NAME:') ||
+            inputText.includes('[SSN:') || inputText.includes('[CC:') || inputText.includes('[ADDRESS:') || inputText.includes('[DATE:')) {
           console.log('🔒 Already tokenized text detected, allowing submission');
           return; // Allow the submission to proceed
         }
