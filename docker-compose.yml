@@ -1,11 +1,25 @@
 version: '3.8'
 
 services:
+  # CORS-enabled proxy for Presidio Analyzer
+  presidio-analyzer-proxy:
+    image: nginx:alpine
+    container_name: pii-presidio-analyzer-proxy
+    ports:
+      - "5001:80"
+    volumes:
+      - ./config/nginx-analyzer.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - presidio-analyzer
+    restart: unless-stopped
+    networks:
+      - presidio-network
+
   presidio-analyzer:
     image: mcr.microsoft.com/presidio-analyzer:latest
     container_name: pii-presidio-analyzer
-    ports:
-      - "5001:3000"
+    expose:
+      - "3000"
     environment:
       - PRESIDIO_ANALYZER_PORT=3000
       - LOG_LEVEL=INFO
@@ -19,11 +33,25 @@ services:
     networks:
       - presidio-network
 
+  # CORS-enabled proxy for Presidio Anonymizer
+  presidio-anonymizer-proxy:
+    image: nginx:alpine
+    container_name: pii-presidio-anonymizer-proxy
+    ports:
+      - "5002:80"
+    volumes:
+      - ./config/nginx-anonymizer.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - presidio-anonymizer
+    restart: unless-stopped
+    networks:
+      - presidio-network
+
   presidio-anonymizer:
     image: mcr.microsoft.com/presidio-anonymizer:latest
     container_name: pii-presidio-anonymizer
-    ports:
-      - "5002:3000"
+    expose:
+      - "3000"
     environment:
       - PRESIDIO_ANONYMIZER_PORT=3000
       - LOG_LEVEL=INFO
