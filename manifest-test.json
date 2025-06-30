@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "PII Extension Test",
+  "version": "1.0.0",
+  "description": "Minimal test for content script loading",
+  
+  "permissions": [
+    "activeTab"
+  ],
+  
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["test-content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

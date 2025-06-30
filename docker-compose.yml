@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: pii-presidio-analyzer
+    ports:
+      - "5001:3000"
+    environment:
+      - PRESIDIO_ANALYZER_PORT=3000
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - presidio-network
+
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: pii-presidio-anonymizer
+    ports:
+      - "5002:3000"
+    environment:
+      - PRESIDIO_ANONYMIZER_PORT=3000
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - presidio-network
+
+networks:
+  presidio-network:
+    driver: bridge

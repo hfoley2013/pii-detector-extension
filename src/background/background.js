@@ -19,10 +19,13 @@ class PIIExtensionBackground {
   initializeServices() {
     try {
       this.tokenizer = new PIITokenizer();
-      this.detector = new PIIPatternDetector();
-      console.log('PII services initialized successfully');
+      this.detector = new PIIDetector(); // Now uses Presidio + regex fallback
+      console.log('PII services initialized successfully (Presidio + regex fallback)');
     } catch (error) {
       console.error('Failed to initialize PII services:', error);
+      // Fallback to regex-only if Presidio classes aren't available
+      this.detector = new PIIPatternDetector();
+      console.log('Initialized with regex-only fallback');
     }
   }
 
@@ -199,10 +202,23 @@ class PIIExtensionBackground {
   async detectPII(text) {
     try {
       if (!this.detector) {
-        this.detector = new PIIPatternDetector();
+        // Try to initialize the new detector, fall back to regex if needed
+        try {
+          this.detector = new PIIDetector();
+        } catch (error) {
+          console.warn('PIIDetector not available, using regex fallback:', error);
+          this.detector = new PIIPatternDetector();
+        }
       }
       
-      return await this.detector.analyzePII(text);
+      const results = await this.detector.analyzePII(text);
+      console.log('Background: PII detection results:', {
+        count: results.length,
+        method: results[0]?.detection_method || 'unknown',
+        entities: results.map(r => r.entity_type)
+      });
+      
+      return results;
     } catch (error) {
       console.error('PII detection error:', error);
       return [];
