@@ -18,14 +18,13 @@ class PIIExtensionBackground {
 
   initializeServices() {
     try {
-      this.tokenizer = new PIITokenizer();
-      this.detector = new PIIDetector(); // Now uses Presidio + regex fallback
-      console.log('PII services initialized successfully (Presidio + regex fallback)');
+      // Background script doesn't have access to content script classes
+      // We'll initialize them lazily when needed
+      this.tokenizer = null;
+      this.detector = null;
+      console.log('PII services will be initialized when needed (background script limitation)');
     } catch (error) {
       console.error('Failed to initialize PII services:', error);
-      // Fallback to regex-only if Presidio classes aren't available
-      this.detector = new PIIPatternDetector();
-      console.log('Initialized with regex-only fallback');
     }
   }
 
@@ -201,20 +200,18 @@ class PIIExtensionBackground {
 
   async detectPII(text) {
     try {
+      // Background script uses simple regex patterns
+      // The real detection happens in content script
+      console.log('Background: Using simple regex patterns (content script handles advanced detection)');
+      
       if (!this.detector) {
-        // Try to initialize the new detector, fall back to regex if needed
-        try {
-          this.detector = new PIIDetector();
-        } catch (error) {
-          console.warn('PIIDetector not available, using regex fallback:', error);
-          this.detector = new PIIPatternDetector();
-        }
+        this.detector = this.createSimpleDetector();
       }
       
       const results = await this.detector.analyzePII(text);
       console.log('Background: PII detection results:', {
         count: results.length,
-        method: results[0]?.detection_method || 'unknown',
+        method: 'background_regex',
         entities: results.map(r => r.entity_type)
       });
       
@@ -223,6 +220,134 @@ class PIIExtensionBackground {
       console.error('PII detection error:', error);
       return [];
     }
+  }
+
+  createSimpleDetector() {
+    return {
+      async analyzePII(text) {
+        const entities = [];
+        const patterns = {
+          email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+          phone: /(?:\+?1[-.\\s]?)?\(?([0-9]{3})\)?[-.\\s]?([0-9]{3})[-.\\s]?([0-9]{4})\b/g,
+          name: /\b[A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?\b/g
+        };
+
+        for (const [type, regex] of Object.entries(patterns)) {
+          const matches = [...text.matchAll(regex)];
+          for (const match of matches) {
+            entities.push({
+              entity_type: type,
+              start: match.index,
+              end: match.index + match[0].length,
+              score: 0.8,
+              text: match[0],
+              detection_method: 'background_regex'
+            });
+          }
+        }
+
+        return entities.sort((a, b) => a.start - b.start);
+      }
+    };
+  }
+
+  createSimpleTokenizer() {
+    return {
+      tokenMappings: new Map(),
+      reverseTokenMappings: new Map(),
+      sessionId: Math.random().toString(36).substring(2, 15),
+
+      generateToken(piiValue, piiType) {
+        const key = `${piiType}:${piiValue}:${this.sessionId}`;
+        
+        if (this.tokenMappings.has(key)) {
+          return this.tokenMappings.get(key);
+        }
+
+        const hash = this.hashString(key);
+        const tokenId = this.generateTokenId(hash, piiType);
+        const semanticLabel = this.getSemanticLabel(piiType);
+        const token = `<${piiType}>${semanticLabel}_${tokenId}</${piiType}>`;
+        
+        this.tokenMappings.set(key, token);
+        this.reverseTokenMappings.set(token, piiValue);
+        
+        return token;
+      },
+
+      hashString(str) {
+        let hash = 0;
+        if (str.length === 0) return hash;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash);
+      },
+
+      generateTokenId(hash, piiType) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const prefixes = {
+          'name': 'NM',
+          'email': 'EM',
+          'phone': 'PH'
+        };
+        
+        const prefix = prefixes[piiType] || 'TK';
+        let result = prefix;
+        
+        for (let i = 0; i < 4; i++) {
+          result += chars[hash % chars.length];
+          hash = Math.floor(hash / chars.length);
+        }
+        
+        return result;
+      },
+
+      getSemanticLabel(piiType) {
+        const semanticLabels = {
+          'name': 'PERSON_NAME',
+          'email': 'EMAIL_ADDRESS',
+          'phone': 'PHONE_NUMBER'
+        };
+        
+        return semanticLabels[piiType] || 'PII_TOKEN';
+      },
+
+      tokenizeText(text, piiEntities) {
+        if (!piiEntities || piiEntities.length === 0) {
+          return text;
+        }
+
+        let tokenizedText = text;
+        const sortedEntities = piiEntities.sort((a, b) => b.start - a.start);
+
+        for (const entity of sortedEntities) {
+          const originalValue = text.substring(entity.start, entity.end);
+          const token = this.generateToken(originalValue, entity.entity_type);
+          
+          tokenizedText = tokenizedText.substring(0, entity.start) + 
+                         token + 
+                         tokenizedText.substring(entity.end);
+        }
+
+        return tokenizedText;
+      },
+
+      clearTokenMappings() {
+        this.tokenMappings.clear();
+        this.reverseTokenMappings.clear();
+        this.sessionId = Math.random().toString(36).substring(2, 15);
+      },
+
+      getTokenMappingStats() {
+        return {
+          totalMappings: this.tokenMappings.size,
+          sessionId: this.sessionId
+        };
+      }
+    };
   }
 
   getTabTokenizer(tabId) {
@@ -236,7 +361,7 @@ class PIIExtensionBackground {
   initializeTabState(tabId) {
     if (!this.tabStates.has(tabId)) {
       this.tabStates.set(tabId, {
-        tokenizer: new PIITokenizer(),
+        tokenizer: this.createSimpleTokenizer(),
         createdAt: Date.now(),
         lastActivity: Date.now(),
         piiDetectedCount: 0,
