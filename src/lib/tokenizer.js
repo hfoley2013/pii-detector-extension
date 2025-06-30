@@ -30,12 +30,28 @@ class PIITokenizer {
 
     const hash = this.hashString(key);
     const tokenId = this.generateTokenId(hash, piiType);
-    const token = `<${piiType}>${tokenId}</${piiType}>`;
+    const semanticLabel = this.getSemanticLabel(piiType);
+    const token = `<${piiType}>${semanticLabel}_${tokenId}</${piiType}>`;
     
     this.tokenMappings.set(key, token);
     this.reverseTokenMappings.set(token, piiValue);
     
     return token;
+  }
+  
+  getSemanticLabel(piiType) {
+    const semanticLabels = {
+      'name': 'PERSON_NAME',
+      'email': 'EMAIL_ADDRESS',
+      'phone': 'PHONE_NUMBER',
+      'ssn': 'SSN_NUMBER',
+      'cc': 'CREDIT_CARD',
+      'address': 'STREET_ADDRESS',
+      'date': 'DATE_VALUE',
+      'url': 'URL_LINK'
+    };
+    
+    return semanticLabels[piiType] || 'PII_TOKEN';
   }
 
   generateTokenId(hash, piiType) {
@@ -85,7 +101,7 @@ class PIITokenizer {
     if (!text) return text;
 
     let detokenizedText = text;
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date)>([^<]+)<\/\1>/g;
+    const tokenPattern = /<(name|email|phone|ssn|cc|address|date|url)>([^<]+)<\/\1>/g;
     
     detokenizedText = detokenizedText.replace(tokenPattern, (match) => {
       const originalValue = this.reverseTokenMappings.get(match);
@@ -97,7 +113,7 @@ class PIITokenizer {
 
   extractTokens(text) {
     const tokens = [];
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date)>([^<]+)<\/\1>/g;
+    const tokenPattern = /<(name|email|phone|ssn|cc|address|date|url)>([^<]+)<\/\1>/g;
     let match;
 
     while ((match = tokenPattern.exec(text)) !== null) {

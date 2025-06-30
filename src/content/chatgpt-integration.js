@@ -307,6 +307,15 @@ class ChatGPTIntegration {
         method: piiEntities[0]?.detection_method || 'unknown',
         entities: piiEntities.map(e => e.entity_type)
       });
+      
+      // Debug: Log detailed entity information
+      console.log('🔒 Detailed entities detected:', piiEntities.map(entity => ({
+        type: entity.entity_type,
+        text: entity.text,
+        start: entity.start,
+        end: entity.end,
+        score: entity.score
+      })));
 
       if (piiEntities.length === 0) {
         console.log('🔒 No PII detected, proceeding with original text');
