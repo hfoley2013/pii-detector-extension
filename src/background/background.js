@@ -42,7 +42,8 @@ class PIIExtensionBackground {
     });
 
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'complete' && tab.url?.includes('chatgpt.com')) {
+      if (changeInfo.status === 'complete' && 
+          (tab.url?.includes('chatgpt.com') || tab.url?.includes('gemini.google.com'))) {
         this.initializeTabState(tabId);
       }
     });
