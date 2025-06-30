@@ -271,7 +271,8 @@ class ChatGPTIntegration {
 
   async processInputText(text) {
     try {
-      console.log('🔒 Processing input text:', text.substring(0, 50) + '...');
+      console.log('🔒 🔒 🔒 PROCESSING INPUT TEXT (LENGTH:', text.length, '):', text.substring(0, 100) + '...');
+      console.log('🔒 Extension context valid:', !!chrome.runtime?.id);
       
       // Check if extension context is still valid
       if (!chrome.runtime?.id) {
@@ -284,8 +285,12 @@ class ChatGPTIntegration {
         text: text
       };
 
+      console.log('🔒 Sending message to background script:', message);
+      
       return new Promise((resolve) => {
         chrome.runtime.sendMessage(message, (response) => {
+          console.log('🔒 Background script response received:', response);
+          
           if (chrome.runtime.lastError) {
             console.error('🔒 Error processing text:', chrome.runtime.lastError);
             
@@ -441,13 +446,17 @@ class ChatGPTIntegration {
   
   attachSubmitListener(button) {
     button.addEventListener('click', (event) => {
-      console.log('🔒 Submit button clicked via observer!');
+      console.log('🔒 🔒 🔒 SUBMIT BUTTON CLICKED VIA OBSERVER!');
       const inputText = DOMUtils.getTextContent(this.inputElement);
+      console.log('🔒 Input text from DOM:', inputText?.substring(0, 100) + '...');
       if (inputText && inputText.trim().length > 0) {
+        console.log('🔒 Preventing default and handling submission...');
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         this.handleTextSubmission(inputText);
+      } else {
+        console.log('🔒 No input text found, allowing normal submission');
       }
     }, true);
   }
@@ -473,7 +482,7 @@ class ChatGPTIntegration {
   }
 
   async handleTextSubmission(text) {
-    console.log('🔒 Handling text submission:', text);
+    console.log('🔒 🔒 🔒 HANDLING TEXT SUBMISSION - Length:', text.length, 'Text:', text.substring(0, 100) + '...');
     
     try {
       // Check if extension context is still valid before processing

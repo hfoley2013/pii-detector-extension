@@ -49,15 +49,17 @@ class PIIExtensionBackground {
   }
 
   async handleMessage(message, sender, sendResponse) {
-    console.log('Background: Received message:', message.action, 'from tab:', sender.tab?.id);
+    console.log('🔒 🔒 🔒 BACKGROUND: Received message:', message.action, 'from tab:', sender.tab?.id);
+    console.log('🔒 Message content:', message);
     
     const tabId = sender.tab?.id || 'unknown';
     
     switch (message.action) {
       case 'tokenizeText':
+        console.log('🔒 BACKGROUND: Starting tokenization for text length:', message.text?.length);
         this.tokenizeText(message.text, tabId)
           .then(result => {
-            console.log('Background: Tokenization result:', result);
+            console.log('🔒 🔒 🔒 BACKGROUND: Tokenization result:', result);
             sendResponse(result);
           })
           .catch(error => {
