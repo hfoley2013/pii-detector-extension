@@ -123,6 +123,25 @@ class PIIExtensionBackground {
           return true;
         }
 
+      case 'recordPiiDetection':
+        console.log('🔒 🔒 🔒 BACKGROUND: Recording PII detection stats:', {
+          count: message.piiCount,
+          types: message.piiTypes,
+          method: message.detectionMethod
+        });
+        
+        // Update tab state with detection stats
+        this.updateTabState(tabId, {
+          lastTokenization: Date.now(),
+          piiDetectedCount: (this.tabStates.get(tabId)?.piiDetectedCount || 0) + message.piiCount,
+          lastPiiTypes: message.piiTypes,
+          lastDetectionMethod: message.detectionMethod
+        });
+
+        this.updateExtensionIcon(tabId, 'active');
+        sendResponse({ success: true, recorded: true });
+        return true;
+
       default:
         console.log('Background: Unknown action:', message.action);
         sendResponse({ error: 'Unknown action' });
@@ -412,6 +431,7 @@ class PIIExtensionBackground {
         tokensReplacedCount: state.tokensReplacedCount,
         lastActivity: state.lastActivity,
         lastPiiTypes: state.lastPiiTypes,
+        lastDetectionMethod: state.lastDetectionMethod || 'unknown',
         tokenMappings: state.tokenizer?.getTokenMappingStats()
       } : null
     };

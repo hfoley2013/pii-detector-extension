@@ -14,6 +14,10 @@ class ChatGPTIntegration {
     this.responseObserver = null;
     this.isInitialized = false;
     this.interceptionDisabled = false;
+    
+    // Initialize PII detection components
+    this.piiDetector = null;
+    this.tokenizer = null;
   }
 
   async initialize() {
@@ -271,7 +275,7 @@ class ChatGPTIntegration {
 
   async processInputText(text) {
     try {
-      console.log('🔒 🔒 🔒 PROCESSING INPUT TEXT (LENGTH:', text.length, '):', text.substring(0, 100) + '...');
+      console.log('🔒 🔒 🔒 PROCESSING INPUT TEXT WITH PRESIDIO (LENGTH:', text.length, '):', text.substring(0, 100) + '...');
       console.log('🔒 Extension context valid:', !!chrome.runtime?.id);
       
       // Check if extension context is still valid
@@ -279,35 +283,75 @@ class ChatGPTIntegration {
         console.warn('🔒 Extension context invalidated, allowing submission without processing');
         return { tokenizedText: text, piiDetected: false, error: 'Extension context invalidated' };
       }
+
+      // NEW: Do PII detection directly in content script where Presidio is available
+      console.log('🔒 🔒 🔒 STARTING PRESIDIO DETECTION IN CONTENT SCRIPT');
       
+      // Initialize PIIDetector if not already done
+      if (!this.piiDetector) {
+        try {
+          this.piiDetector = new PIIDetector();
+          console.log('🔒 PIIDetector initialized successfully');
+        } catch (error) {
+          console.error('🔒 Failed to initialize PIIDetector:', error);
+          // Fallback to regex if PIIDetector fails
+          this.piiDetector = new PIIPatternDetector();
+          console.log('🔒 Using regex fallback detector');
+        }
+      }
+
+      // Detect PII using Presidio
+      const piiEntities = await this.piiDetector.analyzePII(text);
+      console.log('🔒 🔒 🔒 CONTENT SCRIPT DETECTION COMPLETE:', {
+        count: piiEntities.length,
+        method: piiEntities[0]?.detection_method || 'unknown',
+        entities: piiEntities.map(e => e.entity_type)
+      });
+
+      if (piiEntities.length === 0) {
+        console.log('🔒 No PII detected, proceeding with original text');
+        return { tokenizedText: text, piiDetected: false };
+      }
+
+      // Initialize tokenizer if needed
+      if (!this.tokenizer) {
+        this.tokenizer = new PIITokenizer();
+        console.log('🔒 PIITokenizer initialized in content script');
+      }
+
+      // Tokenize the text
+      const tokenizedText = this.tokenizer.tokenizeText(text, piiEntities);
+      console.log('🔒 🔒 🔒 TOKENIZATION COMPLETE:', tokenizedText.substring(0, 100) + '...');
+
+      // Send the results to background script for tracking/stats
       const message = {
-        action: 'tokenizeText',
-        text: text
+        action: 'recordPiiDetection',
+        piiCount: piiEntities.length,
+        piiTypes: piiEntities.map(e => e.entity_type),
+        detectionMethod: piiEntities[0]?.detection_method || 'unknown'
       };
 
-      console.log('🔒 Sending message to background script:', message);
-      
-      return new Promise((resolve) => {
+      // Send stats to background script (fire and forget)
+      try {
         chrome.runtime.sendMessage(message, (response) => {
-          console.log('🔒 Background script response received:', response);
-          
           if (chrome.runtime.lastError) {
-            console.error('🔒 Error processing text:', chrome.runtime.lastError);
-            
-            // Handle specific context invalidation error
-            if (chrome.runtime.lastError.message.includes('Extension context invalidated')) {
-              console.warn('🔒 Extension was reloaded, allowing submission without processing');
-              resolve({ tokenizedText: text, piiDetected: false, error: 'Extension reloaded' });
-              return;
-            }
-            
-            resolve({ tokenizedText: text, piiDetected: false, error: chrome.runtime.lastError.message });
+            console.log('🔒 Background stats logging failed (non-critical):', chrome.runtime.lastError.message);
           } else {
-            console.log('🔒 Background response:', response);
-            resolve(response || { tokenizedText: text, piiDetected: false });
+            console.log('🔒 Stats recorded in background script');
           }
         });
-      });
+      } catch (error) {
+        console.log('🔒 Background stats logging failed (non-critical):', error.message);
+      }
+
+      return {
+        tokenizedText,
+        piiDetected: true,
+        piiCount: piiEntities.length,
+        piiTypes: piiEntities.map(e => e.entity_type),
+        detectionMethod: piiEntities[0]?.detection_method || 'unknown'
+      };
+
     } catch (error) {
       console.error('🔒 Error processing input text:', error);
       return { tokenizedText: text, piiDetected: false, error: error.message };
