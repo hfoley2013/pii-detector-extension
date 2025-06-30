@@ -5,6 +5,29 @@ console.log('🚨 Document ready state:', document.readyState);
 console.log('🚨 Chrome runtime available:', !!chrome?.runtime);
 console.log('🚨 Extension ID:', chrome?.runtime?.id);
 
+// Define essential test functions IMMEDIATELY
+window.simplePresidioTest = function() {
+  console.log('🔧 Simple Presidio Test (immediate)');
+  console.log('- PresidioClient type:', typeof window.PresidioClient);
+  if (typeof window.PresidioClient !== 'undefined') {
+    try {
+      const client = new window.PresidioClient();
+      console.log('✅ PresidioClient created successfully');
+      client.isServiceAvailable().then(available => {
+        console.log('🔍 Presidio Available:', available);
+      }).catch(err => {
+        console.log('❌ Presidio Error:', err.message);
+      });
+    } catch (error) {
+      console.log('❌ PresidioClient creation failed:', error.message);
+    }
+  } else {
+    console.log('❌ PresidioClient not available');
+  }
+};
+
+console.log('🔧 simplePresidioTest function defined - you can call it anytime');
+
 // Add extension context monitoring
 window.addEventListener('beforeunload', () => {
   console.log('🚨 Page unloading - extension context may be invalidated');
@@ -265,12 +288,112 @@ window.addEventListener('beforeunload', () => {
   piiExtension?.chatGPTIntegration?.destroy();
 });
 
+// Define global functions immediately when content script loads
+window.testDetectionMethod = async function(text = "My name is Dr. Sarah Johnson and my email is sarah@hospital.org") {
+  console.log("🔍 Testing detection method with:", text);
+  try {
+    // Test if PIIDetector is available
+    if (typeof PIIDetector !== 'undefined') {
+      const detector = new PIIDetector();
+      console.log("🔍 Testing with PIIDetector directly...");
+      const results = await detector.analyzePII(text);
+      console.log("🔍 Direct Detection Results:", {
+        count: results.length,
+        method: results[0]?.detection_method || 'unknown',
+        entities: results.map(r => ({
+          type: r.entity_type,
+          text: r.text,
+          method: r.detection_method,
+          confidence: r.confidence || r.score
+        }))
+      });
+      return results;
+    } else {
+      console.log("🔍 PIIDetector not available, testing via background script...");
+      return await testPIIDetection(text);
+    }
+  } catch (error) {
+    console.error("🔍 Detection method test error:", error);
+    return { error: error.message };
+  }
+};
+
+// Add function to check what classes are available
+window.checkLoadedClasses = function() {
+  console.log('🔍 Checking loaded PII classes:');
+  console.log('- PresidioClient:', typeof window.PresidioClient);
+  console.log('- PIIDetector:', typeof window.PIIDetector);
+  console.log('- PIIPatternDetector:', typeof window.PIIPatternDetector);
+  console.log('- PIITokenizer:', typeof window.PIITokenizer);
+  
+  return {
+    PresidioClient: typeof window.PresidioClient !== 'undefined',
+    PIIDetector: typeof window.PIIDetector !== 'undefined',
+    PIIPatternDetector: typeof window.PIIPatternDetector !== 'undefined',
+    PIITokenizer: typeof window.PIITokenizer !== 'undefined'
+  };
+};
+
+// Add simplified Presidio test
+window.testPresidioService = async function() {
+  console.log('🔍 Testing Presidio service availability...');
+  try {
+    if (typeof window.PresidioClient === 'undefined') {
+      console.error('❌ PresidioClient not loaded');
+      return { error: 'PresidioClient not loaded' };
+    }
+    
+    const presidioClient = new window.PresidioClient();
+    const available = await presidioClient.isServiceAvailable();
+    console.log('🔍 Presidio Available:', available);
+    
+    if (available) {
+      console.log('✅ Presidio services are running and accessible');
+    } else {
+      console.log('❌ Presidio services are not available');
+    }
+    
+    return { available };
+  } catch (error) {
+    console.error('🔍 Error testing Presidio:', error);
+    return { error: error.message };
+  }
+};
+
+// Quick test for immediate verification 
+window.quickPresidioCheck = function() {
+  console.log('🚀 Quick Presidio Check:');
+  console.log('PresidioClient available:', typeof window.PresidioClient !== 'undefined');
+  if (typeof window.PresidioClient !== 'undefined') {
+    const client = new window.PresidioClient();
+    client.isServiceAvailable().then(available => {
+      console.log('Presidio service available:', available);
+    }).catch(error => {
+      console.log('Presidio service error:', error.message);
+    });
+  }
+};
+
+console.log('🔒 PII Extension: Global functions defined');
+console.log('Available functions: testDetectionMethod, checkLoadedClasses, testPresidioService, quickPresidioCheck');
+
 // Ensure functions are available after initialization
 setTimeout(() => {
   console.log('🔒 PII Extension: Debug functions available');
   console.log('- testPIIDetection:', typeof window.testPIIDetection);
   console.log('- debugPIIExtension:', typeof window.debugPIIExtension);
   console.log('- DOMUtils.isElementVisible:', typeof window.DOMUtils?.isElementVisible);
+  console.log('- testDetectionMethod:', typeof window.testDetectionMethod);
+  console.log('- checkLoadedClasses:', typeof window.checkLoadedClasses);
+  console.log('- testPresidioService:', typeof window.testPresidioService);
+  console.log('- quickPresidioCheck:', typeof window.quickPresidioCheck);
+  
+  // Automatically check what's loaded
+  setTimeout(() => {
+    if (typeof window.checkLoadedClasses === 'function') {
+      window.checkLoadedClasses();
+    }
+  }, 500);
   
   // Add a simple test for immediate use
   window.testSubmissionInterception = () => {

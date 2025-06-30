@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Extension Working Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; }
+        .textarea-container { position: relative; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; font-family: monospace; }
+        .submit-button { background: #28a745; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Extension Detection Test</h1>
+    <p>This simulates ChatGPT input to test if the extension is working and which detection method it uses.</p>
+    
+    <div class="test-section">
+        <h2>1. Extension Status Check</h2>
+        <button onclick="checkExtensionStatus()">Check Extension</button>
+        <div id="extensionStatus"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Simulate ChatGPT Input</h2>
+        <p>Enter text with PII and "submit" to see if the extension detects and tokenizes it:</p>
+        
+        <div class="textarea-container">
+            <textarea id="chatInput" placeholder="Enter text with PII here..." name="prompt-textarea">My name is Dr. Sarah Johnson and my email is sarah.johnson@hospital.org. Call me at (555) 123-4567.</textarea>
+        </div>
+        
+        <button class="submit-button" onclick="simulateSubmit()">🚀 Simulate Submit (Test Extension)</button>
+        <button onclick="clearResults()">🗑️ Clear Results</button>
+        
+        <div id="submitResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Detection Method Analysis</h2>
+        <p>This will analyze what actually gets sent and determine the detection method:</p>
+        <button onclick="analyzeDetection()">📊 Analyze Current Content</button>
+        <div id="analysisResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Direct Browser Test (No Extension)</h2>
+        <p>This tests Presidio directly from the browser for comparison:</p>
+        <button onclick="testPresidioDirect()">🔗 Test Presidio Direct</button>
+        <div id="directResults"></div>
+    </div>
+
+    <script>
+        function checkExtensionStatus() {
+            const statusDiv = document.getElementById('extensionStatus');
+            
+            // Check if extension functions are available
+            const hasExtensionFunctions = typeof chrome !== 'undefined' && chrome.runtime;
+            
+            let html = '<div class="result">';
+            html += `<strong>Extension Context:</strong> ${hasExtensionFunctions ? '✅ Available' : '❌ Not Available'}<br>`;
+            
+            if (hasExtensionFunctions) {
+                html += `<strong>Extension ID:</strong> ${chrome.runtime.id || 'Unknown'}<br>`;
+                
+                // Try to send a message to background script
+                try {
+                    chrome.runtime.sendMessage({action: 'getExtensionStatus'}, (response) => {
+                        if (chrome.runtime.lastError) {
+                            statusDiv.innerHTML += `<div class="error">Background script error: ${chrome.runtime.lastError.message}</div>`;
+                        } else {
+                            statusDiv.innerHTML += `<div class="success">Background script response: ${JSON.stringify(response)}</div>`;
+                        }
+                    });
+                } catch (error) {
+                    html += `<div class="error">Message sending failed: ${error.message}</div>`;
+                }
+            }
+            
+            html += '</div>';
+            statusDiv.innerHTML = html;
+        }
+
+        function simulateSubmit() {
+            const input = document.getElementById('chatInput');
+            const resultsDiv = document.getElementById('submitResults');
+            const originalText = input.value;
+            
+            resultsDiv.innerHTML = '<div class="result">Testing extension interception...</div>';
+            
+            // Create a fake form submission event
+            const form = document.createElement('form');
+            form.style.display = 'none';
+            document.body.appendChild(form);
+            
+            // Move the textarea into the form temporarily
+            const originalParent = input.parentNode;
+            form.appendChild(input);
+            
+            // Simulate form submission
+            const submitEvent = new Event('submit', {
+                bubbles: true,
+                cancelable: true
+            });
+            
+            let intercepted = false;
+            
+            // Listen for the submit event to see if it gets prevented
+            form.addEventListener('submit', (e) => {
+                intercepted = true;
+                e.preventDefault();
+                console.log('Form submission intercepted by extension');
+            });
+            
+            // Dispatch the event
+            form.dispatchEvent(submitEvent);
+            
+            // Wait a moment and then check the results
+            setTimeout(() => {
+                const currentText = input.value;
+                const wasModified = currentText !== originalText;
+                
+                let html = '<div class="result">';
+                html += `<strong>Original Text:</strong> "${originalText}"<br>`;
+                html += `<strong>Current Text:</strong> "${currentText}"<br>`;
+                html += `<strong>Text Modified:</strong> ${wasModified ? '✅ Yes (Extension Working!)' : '❌ No'}<br>`;
+                html += `<strong>Form Intercepted:</strong> ${intercepted ? '✅ Yes' : '❌ No'}<br>`;
+                
+                if (wasModified) {
+                    // Analyze the tokenization
+                    const tokens = currentText.match(/<(\w+)>([^<]+)<\/\1>/g) || [];
+                    html += `<strong>Tokens Found:</strong> ${tokens.length}<br>`;
+                    if (tokens.length > 0) {
+                        html += `<strong>Token Examples:</strong> ${tokens.slice(0, 3).join(', ')}<br>`;
+                    }
+                    
+                    // Determine detection method by analyzing token pattern
+                    if (tokens.length > 0) {
+                        const sampleToken = tokens[0];
+                        if (sampleToken.includes('_EM') || sampleToken.includes('_NM') || sampleToken.includes('_PH')) {
+                            html += `<strong>Detection Method:</strong> 🤖 Likely Presidio (semantic tokens)<br>`;
+                        } else {
+                            html += `<strong>Detection Method:</strong> 📝 Likely Regex (simple tokens)<br>`;
+                        }
+                    }
+                } else {
+                    html += '<div class="warning">Extension may not be working or no PII detected</div>';
+                }
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+                
+                // Restore the textarea to its original location
+                originalParent.appendChild(input);
+                document.body.removeChild(form);
+                
+            }, 100);
+        }
+
+        function analyzeDetection() {
+            const input = document.getElementById('chatInput');
+            const analysisDiv = document.getElementById('analysisResults');
+            const text = input.value;
+            
+            // Look for tokenized content
+            const tokens = text.match(/<(\w+)>([^<]+)<\/\1>/g) || [];
+            
+            let html = '<div class="result">';
+            html += `<strong>Text Analysis:</strong><br>`;
+            html += `<strong>Total Length:</strong> ${text.length} characters<br>`;
+            html += `<strong>Tokens Found:</strong> ${tokens.length}<br>`;
+            
+            if (tokens.length > 0) {
+                html += '<strong>Token Analysis:</strong><br>';
+                tokens.forEach((token, index) => {
+                    const match = token.match(/<(\w+)>([^<]+)<\/\1>/);
+                    if (match) {
+                        const [, type, content] = match;
+                        html += `&nbsp;&nbsp;${index + 1}. Type: ${type}, Content: ${content}<br>`;
+                    }
+                });
+                
+                // Determine likely detection method
+                const hasSemanticLabels = tokens.some(token => 
+                    token.includes('PERSON_NAME') || 
+                    token.includes('EMAIL_ADDRESS') || 
+                    token.includes('PHONE_NUMBER')
+                );
+                
+                html += `<br><strong>Likely Detection Method:</strong> `;
+                if (hasSemanticLabels) {
+                    html += '🤖 Presidio (semantic labels detected)';
+                } else {
+                    html += '📝 Regex (simple patterns)';
+                }
+            } else {
+                html += '<strong>Status:</strong> No tokens found - either no PII or extension not working';
+            }
+            
+            html += '</div>';
+            analysisDiv.innerHTML = html;
+        }
+
+        async function testPresidioDirect() {
+            const resultsDiv = document.getElementById('directResults');
+            const text = document.getElementById('chatInput').value;
+            
+            resultsDiv.innerHTML = '<div class="result">Testing direct Presidio connection...</div>';
+            
+            try {
+                // Test Presidio service directly
+                const response = await fetch('http://localhost:5001/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        language: 'en'
+                    }),
+                    signal: AbortSignal.timeout(5000)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const results = await response.json();
+                
+                let html = '<div class="result success">';
+                html += `<strong>✅ Presidio Direct Test Successful</strong><br>`;
+                html += `<strong>Entities Found:</strong> ${results.length}<br>`;
+                
+                if (results.length > 0) {
+                    html += '<strong>Detected:</strong><br>';
+                    results.forEach((entity, index) => {
+                        const entityText = text.substring(entity.start, entity.end);
+                        html += `&nbsp;&nbsp;${index + 1}. ${entity.entity_type}: "${entityText}" (confidence: ${entity.score})<br>`;
+                    });
+                }
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Presidio Direct Test Failed</strong><br>
+                        Error: ${error.message}<br>
+                        Make sure Presidio Docker containers are running on localhost:5001
+                    </div>
+                `;
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('submitResults').innerHTML = '';
+            document.getElementById('analysisResults').innerHTML = '';
+            document.getElementById('directResults').innerHTML = '';
+            document.getElementById('extensionStatus').innerHTML = '';
+        }
+
+        // Auto-run extension check on load
+        window.onload = () => {
+            setTimeout(checkExtensionStatus, 500);
+        };
+    </script>
+</body>
+</html>

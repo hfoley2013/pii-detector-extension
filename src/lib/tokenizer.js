@@ -30,12 +30,28 @@ class PIITokenizer {
 
     const hash = this.hashString(key);
     const tokenId = this.generateTokenId(hash, piiType);
-    const token = `<${piiType}>${tokenId}</${piiType}>`;
+    const semanticLabel = this.getSemanticLabel(piiType);
+    const token = `[${piiType.toUpperCase()}:${semanticLabel}_${tokenId}]`;
     
     this.tokenMappings.set(key, token);
     this.reverseTokenMappings.set(token, piiValue);
     
     return token;
+  }
+  
+  getSemanticLabel(piiType) {
+    const semanticLabels = {
+      'name': 'PERSON_NAME',
+      'email': 'EMAIL_ADDRESS',
+      'phone': 'PHONE_NUMBER',
+      'ssn': 'SSN_NUMBER',
+      'cc': 'CREDIT_CARD',
+      'address': 'STREET_ADDRESS',
+      'date': 'DATE_VALUE',
+      'url': 'URL_LINK'
+    };
+    
+    return semanticLabels[piiType] || 'PII_TOKEN';
   }
 
   generateTokenId(hash, piiType) {
@@ -66,8 +82,11 @@ class PIITokenizer {
       return text;
     }
 
+    // Remove overlapping entities to prevent malformed tokens
+    const cleanedEntities = this.removeOverlappingEntities(piiEntities);
+    
     let tokenizedText = text;
-    const sortedEntities = piiEntities.sort((a, b) => b.start - a.start);
+    const sortedEntities = cleanedEntities.sort((a, b) => b.start - a.start);
 
     for (const entity of sortedEntities) {
       const originalValue = text.substring(entity.start, entity.end);
@@ -81,11 +100,57 @@ class PIITokenizer {
     return tokenizedText;
   }
 
+  removeOverlappingEntities(entities) {
+    if (!entities || entities.length <= 1) {
+      return entities;
+    }
+
+    // Sort by start position
+    const sorted = entities.sort((a, b) => a.start - b.start);
+    const cleaned = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+      const current = sorted[i];
+      let shouldInclude = true;
+
+      // Check if this entity overlaps with any already accepted entity
+      for (const accepted of cleaned) {
+        if (this.entitiesOverlap(current, accepted)) {
+          // Keep the entity with higher confidence/score
+          if (current.score > accepted.score) {
+            // Remove the lower-scored entity and add current
+            const index = cleaned.indexOf(accepted);
+            cleaned.splice(index, 1);
+          } else {
+            shouldInclude = false;
+          }
+          break;
+        }
+      }
+
+      if (shouldInclude) {
+        cleaned.push(current);
+      }
+    }
+
+    console.log('🔒 Entity overlap resolution:', {
+      original: entities.length,
+      cleaned: cleaned.length,
+      removed: entities.length - cleaned.length
+    });
+
+    return cleaned;
+  }
+
+  entitiesOverlap(entity1, entity2) {
+    return !(entity1.end <= entity2.start || entity2.end <= entity1.start);
+  }
+
   detokenizeText(text) {
     if (!text) return text;
 
     let detokenizedText = text;
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date)>([^<]+)<\/\1>/g;
+    const tokenPattern = /\[(NAME|EMAIL|PHONE|SSN|CC|ADDRESS|DATE|URL):([^\]]+)\]/g;
     
     detokenizedText = detokenizedText.replace(tokenPattern, (match) => {
       const originalValue = this.reverseTokenMappings.get(match);
@@ -97,13 +162,13 @@ class PIITokenizer {
 
   extractTokens(text) {
     const tokens = [];
-    const tokenPattern = /<(name|email|phone|ssn|cc|address|date)>([^<]+)<\/\1>/g;
+    const tokenPattern = /\[(NAME|EMAIL|PHONE|SSN|CC|ADDRESS|DATE|URL):([^\]]+)\]/g;
     let match;
 
     while ((match = tokenPattern.exec(text)) !== null) {
       tokens.push({
         token: match[0],
-        type: match[1],
+        type: match[1].toLowerCase(),
         tokenId: match[2],
         start: match.index,
         end: match.index + match[0].length

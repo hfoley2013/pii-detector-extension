@@ -14,6 +14,10 @@ class ChatGPTIntegration {
     this.responseObserver = null;
     this.isInitialized = false;
     this.interceptionDisabled = false;
+    
+    // Initialize PII detection components
+    this.piiDetector = null;
+    this.tokenizer = null;
   }
 
   async initialize() {
@@ -98,9 +102,9 @@ class ChatGPTIntegration {
         const inputText = DOMUtils.getTextContent(this.inputElement);
         console.log('🔒 Intercepting submission with text:', inputText);
         
-        // Check if this is already a tokenized submission
-        if (inputText.includes('<email>') || inputText.includes('<phone>') || inputText.includes('<name>') ||
-            inputText.includes('<ssn>') || inputText.includes('<cc>') || inputText.includes('<address>') || inputText.includes('<date>')) {
+        // Check if this is already a tokenized submission (new bracket format)
+        if (inputText.includes('[EMAIL:') || inputText.includes('[PHONE:') || inputText.includes('[NAME:') ||
+            inputText.includes('[SSN:') || inputText.includes('[CC:') || inputText.includes('[ADDRESS:') || inputText.includes('[DATE:')) {
           console.log('🔒 Already tokenized text detected, allowing submission');
           return; // Allow the submission to proceed
         }
@@ -271,38 +275,92 @@ class ChatGPTIntegration {
 
   async processInputText(text) {
     try {
-      console.log('🔒 Processing input text:', text.substring(0, 50) + '...');
+      console.log('🔒 🔒 🔒 PROCESSING INPUT TEXT WITH PRESIDIO (LENGTH:', text.length, '):', text.substring(0, 100) + '...');
+      console.log('🔒 Extension context valid:', !!chrome.runtime?.id);
       
       // Check if extension context is still valid
       if (!chrome.runtime?.id) {
         console.warn('🔒 Extension context invalidated, allowing submission without processing');
         return { tokenizedText: text, piiDetected: false, error: 'Extension context invalidated' };
       }
+
+      // NEW: Do PII detection directly in content script where Presidio is available
+      console.log('🔒 🔒 🔒 STARTING PRESIDIO DETECTION IN CONTENT SCRIPT');
       
+      // Initialize PIIDetector if not already done
+      if (!this.piiDetector) {
+        try {
+          this.piiDetector = new PIIDetector();
+          console.log('🔒 PIIDetector initialized successfully');
+        } catch (error) {
+          console.error('🔒 Failed to initialize PIIDetector:', error);
+          // Fallback to regex if PIIDetector fails
+          this.piiDetector = new PIIPatternDetector();
+          console.log('🔒 Using regex fallback detector');
+        }
+      }
+
+      // Detect PII using Presidio
+      const piiEntities = await this.piiDetector.analyzePII(text);
+      console.log('🔒 🔒 🔒 CONTENT SCRIPT DETECTION COMPLETE:', {
+        count: piiEntities.length,
+        method: piiEntities[0]?.detection_method || 'unknown',
+        entities: piiEntities.map(e => e.entity_type)
+      });
+      
+      // Debug: Log detailed entity information
+      console.log('🔒 Detailed entities detected:', piiEntities.map(entity => ({
+        type: entity.entity_type,
+        text: entity.text,
+        start: entity.start,
+        end: entity.end,
+        score: entity.score
+      })));
+
+      if (piiEntities.length === 0) {
+        console.log('🔒 No PII detected, proceeding with original text');
+        return { tokenizedText: text, piiDetected: false };
+      }
+
+      // Initialize tokenizer if needed
+      if (!this.tokenizer) {
+        this.tokenizer = new PIITokenizer();
+        console.log('🔒 PIITokenizer initialized in content script');
+      }
+
+      // Tokenize the text
+      const tokenizedText = this.tokenizer.tokenizeText(text, piiEntities);
+      console.log('🔒 🔒 🔒 TOKENIZATION COMPLETE:', tokenizedText.substring(0, 100) + '...');
+
+      // Send the results to background script for tracking/stats
       const message = {
-        action: 'tokenizeText',
-        text: text
+        action: 'recordPiiDetection',
+        piiCount: piiEntities.length,
+        piiTypes: piiEntities.map(e => e.entity_type),
+        detectionMethod: piiEntities[0]?.detection_method || 'unknown'
       };
 
-      return new Promise((resolve) => {
+      // Send stats to background script (fire and forget)
+      try {
         chrome.runtime.sendMessage(message, (response) => {
           if (chrome.runtime.lastError) {
-            console.error('🔒 Error processing text:', chrome.runtime.lastError);
-            
-            // Handle specific context invalidation error
-            if (chrome.runtime.lastError.message.includes('Extension context invalidated')) {
-              console.warn('🔒 Extension was reloaded, allowing submission without processing');
-              resolve({ tokenizedText: text, piiDetected: false, error: 'Extension reloaded' });
-              return;
-            }
-            
-            resolve({ tokenizedText: text, piiDetected: false, error: chrome.runtime.lastError.message });
+            console.log('🔒 Background stats logging failed (non-critical):', chrome.runtime.lastError.message);
           } else {
-            console.log('🔒 Background response:', response);
-            resolve(response || { tokenizedText: text, piiDetected: false });
+            console.log('🔒 Stats recorded in background script');
           }
         });
-      });
+      } catch (error) {
+        console.log('🔒 Background stats logging failed (non-critical):', error.message);
+      }
+
+      return {
+        tokenizedText,
+        piiDetected: true,
+        piiCount: piiEntities.length,
+        piiTypes: piiEntities.map(e => e.entity_type),
+        detectionMethod: piiEntities[0]?.detection_method || 'unknown'
+      };
+
     } catch (error) {
       console.error('🔒 Error processing input text:', error);
       return { tokenizedText: text, piiDetected: false, error: error.message };
@@ -441,13 +499,17 @@ class ChatGPTIntegration {
   
   attachSubmitListener(button) {
     button.addEventListener('click', (event) => {
-      console.log('🔒 Submit button clicked via observer!');
+      console.log('🔒 🔒 🔒 SUBMIT BUTTON CLICKED VIA OBSERVER!');
       const inputText = DOMUtils.getTextContent(this.inputElement);
+      console.log('🔒 Input text from DOM:', inputText?.substring(0, 100) + '...');
       if (inputText && inputText.trim().length > 0) {
+        console.log('🔒 Preventing default and handling submission...');
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         this.handleTextSubmission(inputText);
+      } else {
+        console.log('🔒 No input text found, allowing normal submission');
       }
     }, true);
   }
@@ -473,7 +535,7 @@ class ChatGPTIntegration {
   }
 
   async handleTextSubmission(text) {
-    console.log('🔒 Handling text submission:', text);
+    console.log('🔒 🔒 🔒 HANDLING TEXT SUBMISSION - Length:', text.length, 'Text:', text.substring(0, 100) + '...');
     
     try {
       // Check if extension context is still valid before processing

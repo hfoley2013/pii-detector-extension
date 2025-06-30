@@ -29,6 +29,8 @@
       "js": [
         "src/lib/tokenizer.js",
         "src/lib/pii-patterns.js",
+        "src/services/presidio-client.js",
+        "src/lib/pii-detector.js",
         "src/utils/dom-utils.js",
         "src/content/chatgpt-integration.js",
         "src/content/content.js"

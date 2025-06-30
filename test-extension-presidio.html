@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Extension Presidio Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-area { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Chrome Extension Presidio Test</h1>
+    
+    <div class="test-area">
+        <h2>Test Input (simulates ChatGPT textarea)</h2>
+        <textarea id="testInput" placeholder="Enter text with PII to test detection...">My name is John Doe and my email is john.doe@example.com. Call me at 555-123-4567.</textarea>
+        <br>
+        <button onclick="simulateSubmission()">Simulate ChatGPT Submission</button>
+        <button onclick="testDirectDetection()">Test Direct Detection</button>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-area">
+        <h2>Extension Status</h2>
+        <button onclick="checkExtensionStatus()">Check Extension Status</button>
+        <div id="extensionStatus"></div>
+    </div>
+
+    <script>
+        // Simulate what the extension does when detecting PII
+        async function simulateSubmission() {
+            const input = document.getElementById('testInput').value;
+            const resultsDiv = document.getElementById('results');
+            
+            resultsDiv.innerHTML = 'Testing PII detection...';
+            
+            try {
+                // This simulates the extension's message to background script
+                if (typeof chrome !== 'undefined' && chrome.runtime) {
+                    chrome.runtime.sendMessage({
+                        action: 'tokenizeText',
+                        text: input
+                    }, (response) => {
+                        displayResults(response, 'Extension Tokenization');
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">Chrome extension not available. Make sure you\'re running this in a Chrome tab with the extension loaded.</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testDirectDetection() {
+            const input = document.getElementById('testInput').value;
+            const resultsDiv = document.getElementById('results');
+            
+            resultsDiv.innerHTML = 'Testing direct detection...';
+            
+            try {
+                // Test if PIIDetector is available globally (from content script)
+                if (typeof PIIDetector !== 'undefined') {
+                    const detector = new PIIDetector();
+                    const results = await detector.analyzePII(input);
+                    displayResults({
+                        piiDetected: results.length > 0,
+                        piiCount: results.length,
+                        piiTypes: results.map(r => r.entity_type),
+                        detectionMethod: results[0]?.detection_method || 'unknown',
+                        results: results
+                    }, 'Direct Detection');
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">PIIDetector not available. Extension scripts may not be loaded.</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Direct detection error: ${error.message}</div>`;
+            }
+        }
+
+        function displayResults(response, method) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (response.error) {
+                resultsDiv.innerHTML = `<div class="error"><strong>${method} Error:</strong> ${response.error}</div>`;
+                return;
+            }
+
+            const cssClass = response.piiDetected ? 'success' : 'result';
+            resultsDiv.innerHTML = `
+                <div class="${cssClass}">
+                    <strong>${method} Results:</strong><br>
+                    PII Detected: ${response.piiDetected ? 'Yes' : 'No'}<br>
+                    ${response.piiDetected ? `
+                        Count: ${response.piiCount}<br>
+                        Types: ${response.piiTypes ? response.piiTypes.join(', ') : 'N/A'}<br>
+                        Detection Method: ${response.detectionMethod || response.results?.[0]?.detection_method || 'Unknown'}<br>
+                        ${response.tokenizedText ? `Tokenized: ${response.tokenizedText}` : ''}
+                    ` : ''}
+                    <details>
+                        <summary>Raw Response</summary>
+                        <pre>${JSON.stringify(response, null, 2)}</pre>
+                    </details>
+                </div>
+            `;
+        }
+
+        async function checkExtensionStatus() {
+            const statusDiv = document.getElementById('extensionStatus');
+            
+            statusDiv.innerHTML = 'Checking extension status...';
+            
+            try {
+                if (typeof chrome !== 'undefined' && chrome.runtime) {
+                    chrome.runtime.sendMessage({
+                        action: 'getExtensionStatus'
+                    }, (response) => {
+                        statusDiv.innerHTML = `
+                            <div class="result">
+                                <strong>Extension Status:</strong><br>
+                                Active: ${response.isActive ? 'Yes' : 'No'}<br>
+                                Tab ID: ${response.tabId}<br>
+                                ${response.stats ? `
+                                    <strong>Statistics:</strong><br>
+                                    PII Detected: ${response.stats.piiDetectedCount}<br>
+                                    Tokens Replaced: ${response.stats.tokensReplacedCount}<br>
+                                    Last PII Types: ${response.stats.lastPiiTypes?.join(', ') || 'None'}<br>
+                                ` : ''}
+                                <details>
+                                    <summary>Full Status</summary>
+                                    <pre>${JSON.stringify(response, null, 2)}</pre>
+                                </details>
+                            </div>
+                        `;
+                    });
+                } else {
+                    statusDiv.innerHTML = '<div class="error">Chrome extension API not available.</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error checking status: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-check extension status on load
+        window.onload = () => {
+            setTimeout(checkExtensionStatus, 1000);
+        };
+    </script>
+</body>
+</html>
