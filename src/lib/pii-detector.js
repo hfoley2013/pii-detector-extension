@@ -33,10 +33,10 @@ class PIIDetector {
       const presidioAvailable = await this.presidioClient.isServiceAvailable();
       
       if (presidioAvailable) {
-        console.log('🔒 Using Presidio for PII detection');
+        console.log('🤖 PRESIDIO DETECTION ACTIVE - Using Presidio for PII detection');
         return await this.detectWithPresidio(text, startTime);
       } else {
-        console.log('🔒 Presidio unavailable, using regex fallback');
+        console.log('📝 REGEX FALLBACK ACTIVE - Presidio unavailable, using regex fallback');
         return await this.detectWithRegex(text, startTime, 'service_unavailable');
       }
     } catch (error) {
@@ -65,10 +65,11 @@ class PIIDetector {
         recognizer: entity.recognizer
       }));
 
-      console.log('🔒 Presidio detection completed:', {
+      console.log('🤖 PRESIDIO DETECTION COMPLETED:', {
         count: enhancedEntities.length,
         duration: duration + 'ms',
-        entities: enhancedEntities.map(e => e.entity_type)
+        entities: enhancedEntities.map(e => e.entity_type),
+        method: 'PRESIDIO'
       });
 
       return enhancedEntities;
@@ -99,11 +100,12 @@ class PIIDetector {
         fallback_reason: reason
       }));
 
-      console.log('🔒 Regex detection completed:', {
+      console.log('📝 REGEX DETECTION COMPLETED:', {
         reason: reason,
         count: enhancedEntities.length,
         duration: duration + 'ms',
-        entities: enhancedEntities.map(e => e.entity_type)
+        entities: enhancedEntities.map(e => e.entity_type),
+        method: 'REGEX'
       });
 
       return enhancedEntities;

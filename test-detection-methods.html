@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detection Method Comparison</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 3px; }
+        .presidio { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .regex { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        textarea { width: 100%; height: 80px; margin: 10px 0; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; }
+        .comparison { display: flex; gap: 20px; }
+        .comparison > div { flex: 1; }
+        .method-label { font-weight: bold; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Detection Method Verification</h1>
+    
+    <div class="test-section">
+        <h2>Test Different PII Types</h2>
+        <p>Presidio typically detects more entity types and has different confidence scores than regex.</p>
+        
+        <label for="testInput"><strong>Test Text:</strong></label>
+        <textarea id="testInput" placeholder="Enter text with PII...">Hello, my name is Dr. Sarah Johnson. You can reach me at sarah.johnson@hospital.org or call (555) 123-4567. My patient ID is P12345 and I work at 123 Medical Center Drive, Boston, MA 02101. Today is December 15, 2023.</textarea>
+        
+        <div style="margin: 10px 0;">
+            <button onclick="compareDetectionMethods()">🔍 Compare Detection Methods</button>
+            <button onclick="testPresidioOnly()">🤖 Test Presidio Only</button>
+            <button onclick="testRegexOnly()">📝 Test Regex Only</button>
+            <button onclick="clearResults()">🗑️ Clear Results</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Service Status Check</h2>
+        <button onclick="checkServiceStatus()">Check Presidio Status</button>
+        <div id="serviceStatus"></div>
+    </div>
+
+    <!-- Load extension scripts -->
+    <script src="src/lib/pii-patterns.js"></script>
+    <script src="src/services/presidio-client.js"></script>
+    <script src="src/lib/pii-detector.js"></script>
+
+    <script>
+        async function compareDetectionMethods() {
+            const text = document.getElementById('testInput').value;
+            const resultsDiv = document.getElementById('results');
+            
+            resultsDiv.innerHTML = '<div class="result">Running comparison...</div>';
+            
+            try {
+                // Test both methods
+                const startTime = Date.now();
+                
+                // Presidio test
+                let presidioResult = null;
+                let presidioError = null;
+                try {
+                    const presidioClient = new PresidioClient();
+                    const presidioEntities = await presidioClient.detectPII(text);
+                    presidioResult = {
+                        entities: presidioEntities,
+                        count: presidioEntities.length,
+                        types: presidioEntities.map(e => e.entity_type),
+                        method: 'presidio',
+                        confidence_scores: presidioEntities.map(e => e.score)
+                    };
+                } catch (error) {
+                    presidioError = error.message;
+                }
+                
+                // Regex test
+                let regexResult = null;
+                try {
+                    const regexDetector = new PIIPatternDetector();
+                    const regexEntities = await regexDetector.analyzePII(text);
+                    regexResult = {
+                        entities: regexEntities,
+                        count: regexEntities.length,
+                        types: regexEntities.map(e => e.entity_type),
+                        method: 'regex',
+                        confidence_scores: regexEntities.map(e => e.score || 0.8)
+                    };
+                } catch (error) {
+                    regexResult = { error: error.message };
+                }
+                
+                // Combined test (what the extension actually uses)
+                let combinedResult = null;
+                try {
+                    const detector = new PIIDetector();
+                    const combinedEntities = await detector.analyzePII(text);
+                    combinedResult = {
+                        entities: combinedEntities,
+                        count: combinedEntities.length,
+                        types: combinedEntities.map(e => e.entity_type),
+                        method: combinedEntities[0]?.detection_method || 'unknown',
+                        confidence_scores: combinedEntities.map(e => e.score || e.confidence)
+                    };
+                } catch (error) {
+                    combinedResult = { error: error.message };
+                }
+                
+                const duration = Date.now() - startTime;
+                
+                // Display results
+                displayComparisonResults(presidioResult, presidioError, regexResult, combinedResult, duration);
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function displayComparisonResults(presidioResult, presidioError, regexResult, combinedResult, duration) {
+            const resultsDiv = document.getElementById('results');
+            
+            let html = `<div class="result"><strong>Detection Comparison (${duration}ms total)</strong></div>`;
+            html += '<div class="comparison">';
+            
+            // Presidio results
+            html += '<div>';
+            html += '<div class="method-label">🤖 Presidio Detection:</div>';
+            if (presidioError) {
+                html += `<div class="result error">Error: ${presidioError}</div>`;
+            } else if (presidioResult) {
+                html += `<div class="result presidio">
+                    <strong>Found ${presidioResult.count} entities</strong><br>
+                    Types: ${presidioResult.types.join(', ')}<br>
+                    Avg Confidence: ${(presidioResult.confidence_scores.reduce((a,b) => a+b, 0) / presidioResult.confidence_scores.length || 0).toFixed(2)}
+                    <details>
+                        <summary>Raw Results</summary>
+                        <pre>${JSON.stringify(presidioResult.entities, null, 2)}</pre>
+                    </details>
+                </div>`;
+            }
+            html += '</div>';
+            
+            // Regex results
+            html += '<div>';
+            html += '<div class="method-label">📝 Regex Detection:</div>';
+            if (regexResult?.error) {
+                html += `<div class="result error">Error: ${regexResult.error}</div>`;
+            } else if (regexResult) {
+                html += `<div class="result regex">
+                    <strong>Found ${regexResult.count} entities</strong><br>
+                    Types: ${regexResult.types.join(', ')}<br>
+                    Avg Confidence: ${(regexResult.confidence_scores.reduce((a,b) => a+b, 0) / regexResult.confidence_scores.length || 0).toFixed(2)}
+                    <details>
+                        <summary>Raw Results</summary>
+                        <pre>${JSON.stringify(regexResult.entities, null, 2)}</pre>
+                    </details>
+                </div>`;
+            }
+            html += '</div>';
+            
+            html += '</div>'; // Close comparison div
+            
+            // Combined (actual extension) results
+            html += '<div style="margin-top: 20px;">';
+            html += '<div class="method-label">🔄 Extension (Combined) Detection:</div>';
+            if (combinedResult?.error) {
+                html += `<div class="result error">Error: ${combinedResult.error}</div>`;
+            } else if (combinedResult) {
+                const cssClass = combinedResult.method === 'presidio' ? 'presidio' : 'regex';
+                html += `<div class="result ${cssClass}">
+                    <strong>Method Used: ${combinedResult.method.toUpperCase()}</strong><br>
+                    Found ${combinedResult.count} entities<br>
+                    Types: ${combinedResult.types.join(', ')}<br>
+                    Avg Confidence: ${(combinedResult.confidence_scores.reduce((a,b) => a+b, 0) / combinedResult.confidence_scores.length || 0).toFixed(2)}
+                    <details>
+                        <summary>Raw Results</summary>
+                        <pre>${JSON.stringify(combinedResult.entities, null, 2)}</pre>
+                    </details>
+                </div>`;
+            }
+            html += '</div>';
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        async function testPresidioOnly() {
+            const text = document.getElementById('testInput').value;
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                const startTime = Date.now();
+                const presidioClient = new PresidioClient();
+                const entities = await presidioClient.detectPII(text);
+                const duration = Date.now() - startTime;
+                
+                resultsDiv.innerHTML = `
+                    <div class="result presidio">
+                        <div class="method-label">🤖 Presidio Only (${duration}ms):</div>
+                        <strong>Found ${entities.length} entities</strong><br>
+                        Types: ${entities.map(e => e.entity_type).join(', ')}<br>
+                        <pre>${JSON.stringify(entities, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="result error">Presidio Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testRegexOnly() {
+            const text = document.getElementById('testInput').value;
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                const startTime = Date.now();
+                const regexDetector = new PIIPatternDetector();
+                const entities = await regexDetector.analyzePII(text);
+                const duration = Date.now() - startTime;
+                
+                resultsDiv.innerHTML = `
+                    <div class="result regex">
+                        <div class="method-label">📝 Regex Only (${duration}ms):</div>
+                        <strong>Found ${entities.length} entities</strong><br>
+                        Types: ${entities.map(e => e.entity_type).join(', ')}<br>
+                        <pre>${JSON.stringify(entities, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="result error">Regex Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function checkServiceStatus() {
+            const statusDiv = document.getElementById('serviceStatus');
+            
+            try {
+                const presidioClient = new PresidioClient();
+                const status = await presidioClient.getServiceStatus();
+                
+                statusDiv.innerHTML = `
+                    <div class="result ${status.available ? 'presidio' : 'error'}">
+                        <strong>Presidio Services: ${status.available ? 'Available ✅' : 'Unavailable ❌'}</strong>
+                        <pre>${JSON.stringify(status, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('serviceStatus').innerHTML = '';
+        }
+        
+        // Auto-check status on load
+        window.onload = () => {
+            checkServiceStatus();
+        };
+    </script>
+</body>
+</html>
