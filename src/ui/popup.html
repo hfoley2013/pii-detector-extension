@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PII Tokenization Extension</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="status-indicator" id="statusIndicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">Initializing...</span>
+      </div>
+      <h1 class="popup-title">PII Protection</h1>
+    </header>
+
+    <main class="popup-content">
+      <div class="stats-section" id="statsSection">
+        <div class="stat-item">
+          <span class="stat-label">PII Detected:</span>
+          <span class="stat-value" id="piiCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Tokens Replaced:</span>
+          <span class="stat-value" id="tokenCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Session Duration:</span>
+          <span class="stat-value" id="sessionDuration">0m</span>
+        </div>
+      </div>
+
+      <div class="pii-types-section" id="piiTypesSection" style="display: none;">
+        <h3>Recent PII Types:</h3>
+        <div class="pii-types" id="piiTypesList"></div>
+      </div>
+
+      <div class="controls-section">
+        <button class="control-button" id="toggleButton">
+          <span id="toggleText">Disable</span>
+        </button>
+        <button class="control-button secondary" id="clearButton">
+          Clear Session
+        </button>
+      </div>
+
+      <div class="info-section">
+        <div class="info-item">
+          <strong>Status:</strong> <span id="detailedStatus">Active</span>
+        </div>
+        <div class="info-item">
+          <strong>Site:</strong> <span id="currentSite">chatgpt.com</span>
+        </div>
+      </div>
+    </main>
+
+    <footer class="popup-footer">
+      <div class="help-text">
+        PII is automatically tokenized before sending to AI models
+      </div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

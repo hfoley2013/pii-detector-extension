@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "PII Tokenization Extension",
+  "version": "1.0.0",
+  "description": "Protects sensitive information by tokenizing PII/PHI data when interacting with AI chat interfaces",
+  
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*", 
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/g/*",
+        "https://chatgpt.com/c/*"
+      ],
+      "js": [
+        "src/lib/tokenizer.js",
+        "src/lib/pii-patterns.js",
+        "src/utils/dom-utils.js",
+        "src/content/chatgpt-integration.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "src/ui/popup.html",
+    "default_title": "PII Tokenization Status"
+  },
+  
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}
