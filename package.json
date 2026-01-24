@@ -1,0 +1,22 @@
+{
+  "name": "pii-detector-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension that protects user privacy by detecting and tokenizing PII before sending to AI chat platforms",
+  "private": true,
+  "scripts": {
+    "watch": "node scripts/watch.js",
+    "watch:mac": "./scripts/watch.sh",
+    "test": "echo 'Run tests in browser console: const tests = new FPETests(); await tests.runAllTests();'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "pii",
+    "privacy",
+    "tokenization",
+    "chatgpt",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}

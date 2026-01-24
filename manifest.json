@@ -3,33 +3,35 @@
   "name": "PII Tokenization Extension",
   "version": "1.0.0",
   "description": "Protects sensitive information by tokenizing PII/PHI data when interacting with AI chat interfaces",
-  
-  "permissions": [
-    "activeTab",
-    "storage"
-  ],
-  
+
+  "permissions": ["activeTab", "storage"],
+
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://gemini.google.com/*"
   ],
-  
+
   "background": {
     "service_worker": "src/background/background.js"
   },
-  
+
   "content_scripts": [
     {
       "matches": [
-        "https://chatgpt.com/*", 
+        "https://chatgpt.com/*",
         "https://chat.openai.com/*",
         "https://chatgpt.com/g/*",
         "https://chatgpt.com/c/*",
         "https://gemini.google.com/*"
       ],
       "js": [
-        "src/lib/tokenizer.js",
+        "src/lib/fpe/alphabets.js",
+        "src/lib/fpe/key-manager.js",
+        "src/lib/fpe/feistel-fpe.js",
+        "src/lib/fpe/format-parser.js",
+        "src/lib/fpe/collision-registry.js",
+        "src/lib/tokenizer-v2.js",
         "src/lib/pii-patterns.js",
         "src/services/presidio-client.js",
         "src/lib/pii-detector.js",
@@ -41,12 +43,12 @@
       "run_at": "document_end"
     }
   ],
-  
+
   "action": {
     "default_popup": "src/ui/popup.html",
     "default_title": "PII Tokenization Status"
   },
-  
+
   "icons": {
     "16": "assets/icons/icon16.png",
     "32": "assets/icons/icon32.png",
